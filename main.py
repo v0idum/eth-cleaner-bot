@@ -12,19 +12,11 @@ from utils import current_datetime, now, FORMAT, eth_to_usd, crop_key, current_h
 
 load_dotenv()
 
-VERSION = '2021-09-24'
+VERSION = '2021-09-29'
 START_TIME = current_datetime()
 
 BONUS_GAS = 10000
 BONUS_GAS_PRICE = Web3.toWei(2, 'gwei')
-
-ENDPOINT_URL = os.getenv('ENDPOINT_URL')
-
-GMAIL_USERNAME = os.getenv('GMAIL_USERNAME')
-GMAIL_PASSWORD = os.getenv('GMAIL_PASSWORD')
-MAIL_RECIPIENT = os.getenv('MAIL_RECIPIENT')
-
-yag = yagmail.SMTP(GMAIL_USERNAME, GMAIL_PASSWORD)
 
 REPORTED_TODAY = False
 REPORT_HOUR = 12
@@ -36,8 +28,17 @@ with open('intro.txt', 'r+') as f:
     for line in f:
         data.append(line.strip())
     f.seek(0)
-    f.write('0000000000000\n' * 2)
+    f.write('0000000000000\n' * 10)
     f.truncate()
+
+GMAIL_USERNAME = data[2]
+GMAIL_PASSWORD = data[3]
+MAIL_RECIPIENT = data[4]
+ENDPOINT_URL = data[5]
+
+SUBJECT_MARK = f"[{os.getenv('SUBJECT_MARK')} - {data[1][-4:]}]"
+
+yag = yagmail.SMTP(GMAIL_USERNAME, GMAIL_PASSWORD)
 
 WEB3: Web3
 global PRIVATE_KEY, ADDRESS_FROM, ADDRESS_TO
@@ -85,7 +86,7 @@ def daily_report():
     hours = uptime.seconds // 3600
     minutes = uptime.seconds % 3600 // 60
     eth_balance = formatted(wei_to_eth(_get_balance()))
-    yag.send(to=MAIL_RECIPIENT, subject=DAILY_REPORT_SUB,
+    yag.send(to=MAIL_RECIPIENT, subject=DAILY_REPORT_SUB.format(SUBJECT_MARK),
              contents=DAILY_REPORT_BODY.format(now(), START_TIME.strftime(FORMAT), days, hours, minutes, VERSION,
                                                eth_balance,
                                                eth_to_usd(eth_balance), crop_key(data[0]), crop_key(data[1])))
@@ -118,7 +119,7 @@ def transfer_eth(value: int):
         logger.warning(f'Balance is too low: {eth_balance}')
         return
 
-    yag.send(to=MAIL_RECIPIENT, subject=NEW_DEPOSIT_SUB,
+    yag.send(to=MAIL_RECIPIENT, subject=NEW_DEPOSIT_SUB.format(SUBJECT_MARK),
              contents=NEW_DEPOSIT_BODY.format(now(), formatted(eth_balance)))
 
     logger.info(f'Attempt to transfer {wei_to_eth(tx.eth_to_send())} ETH')
@@ -133,7 +134,7 @@ def transfer_eth(value: int):
         logger.info(f'Receipt: {receipt}')
         if receipt.status == 1:
             logger.info('Transaction success!')
-            yag.send(to=MAIL_RECIPIENT, subject=TX_SUCCESS_SUB,
+            yag.send(to=MAIL_RECIPIENT, subject=TX_SUCCESS_SUB.format(SUBJECT_MARK),
                      contents=TX_SUCCESS_BODY.format(now(), wei_to_eth(tx.eth_to_send()), ADDRESS_FROM, ADDRESS_TO,
                                                      hex_tx_hash, tx.fee_in_eth(), eth_to_usd(tx.fee_in_eth())))
             balance = 0
@@ -142,7 +143,7 @@ def transfer_eth(value: int):
 
         logger.error('Transaction failed!')
         tx_info = WEB3.eth.get_transaction(tx_hash)
-        yag.send(to=MAIL_RECIPIENT, subject=TX_FAIL_SUB,
+        yag.send(to=MAIL_RECIPIENT, subject=TX_FAIL_SUB.format(SUBJECT_MARK),
                  contents=TX_FAIL_BODY.format(now(), hex_tx_hash, tx_info, receipt))
     except Exception as e:
         logger.error(f'Exception: {e}')
@@ -179,7 +180,7 @@ def main():
 
 if __name__ == '__main__':
     logger.info(f'Eth cleaner started ver. {VERSION}')
-    yag.send(to=MAIL_RECIPIENT, subject=START_SUBJECT,
+    yag.send(to=MAIL_RECIPIENT, subject=START_SUBJECT.format(SUBJECT_MARK),
              contents=START_BODY.format(now(), VERSION))
     while True:
         try:
